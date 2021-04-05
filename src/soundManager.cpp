@@ -284,7 +284,7 @@ sf::SoundBuffer* SoundManager::loadSound(string name)
 
     P<ResourceStream> stream = getResourceStream(name);
     if (!stream) stream = getResourceStream(name + ".wav");
-    if (!stream || !data->loadFromStream(**stream))
+    if (!stream || (stream && !data->loadFromStream(**stream)))
     {
         LOG(WARNING) << "Failed to load sound: " << name;
         soundMap[name] = data;
