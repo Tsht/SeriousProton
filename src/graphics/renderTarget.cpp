@@ -34,6 +34,10 @@ static std::vector<uint16_t> index_data;
 static std::vector<VertexData> lines_vertex_data;
 static std::vector<uint16_t> lines_index_data;
 
+static std::vector<VertexData> points_vertex_data;
+static std::vector<uint16_t> points_index_data;
+
+
 struct ImageInfo
 {
     Texture* texture;
@@ -346,13 +350,13 @@ void RenderTarget::drawLineBlendAdd(const std::vector<glm::vec2>& points, glm::u
 
 void RenderTarget::drawPoint(glm::vec2 position, glm::u8vec4 color)
 {
-    /*
-    sf::VertexArray a(sf::Points, 1);
-    a[0].position.x = position.x;
-    a[0].position.y = position.y;
-    a[0].color = sf::Color(color.r, color.g, color.b, color.a);
-    target.draw(a);
-    */
+    if (points_index_data.size() >= std::numeric_limits<uint16_t>::max() - 2U)
+        finish();
+    auto n = points_vertex_data.size();
+    points_vertex_data.push_back({position, color, atlas_white_pixel});
+    points_index_data.insert(points_index_data.end(), {
+        uint16_t(n)
+    });
 }
 
 void RenderTarget::drawRectColorMultiply(const sp::Rect& rect, glm::u8vec4 color)
@@ -1125,6 +1129,31 @@ void RenderTarget::finish(sp::Texture* texture)
 
         lines_vertex_data.clear();
         lines_index_data.clear();
+    }
+    if (points_index_data.size())
+    {
+        shader->bind();
+
+        glUniform1i(shader->getUniformLocation("u_texture"), 0);
+        glActiveTexture(GL_TEXTURE0);
+        texture->bind();
+
+        glBindBuffer(GL_ARRAY_BUFFER, vertices_vbo);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_vbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(VertexData) * points_vertex_data.size(), points_vertex_data.data(), GL_DYNAMIC_DRAW);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * points_index_data.size(), points_index_data.data(), GL_DYNAMIC_DRAW);
+
+        glVertexAttribPointer(shader->getAttributeLocation("a_position"), 2, GL_FLOAT, GL_FALSE, static_cast<GLsizei>(sizeof(VertexData)), (void*)0);
+        glEnableVertexAttribArray(shader->getAttributeLocation("a_position"));
+        glVertexAttribPointer(shader->getAttributeLocation("a_color"), 4, GL_UNSIGNED_BYTE, GL_TRUE, static_cast<GLsizei>(sizeof(VertexData)), (void*)offsetof(VertexData, color));
+        glEnableVertexAttribArray(shader->getAttributeLocation("a_color"));
+        glVertexAttribPointer(shader->getAttributeLocation("a_texcoords"), 2, GL_FLOAT, GL_FALSE, static_cast<GLsizei>(sizeof(VertexData)), (void*)offsetof(VertexData, uv));
+        glEnableVertexAttribArray(shader->getAttributeLocation("a_texcoords"));
+
+        glDrawElements(GL_POINTS, static_cast<GLsizei>(points_index_data.size()), GL_UNSIGNED_SHORT, nullptr);
+
+        points_vertex_data.clear();
+        points_index_data.clear();
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, GL_NONE);
