@@ -22,19 +22,13 @@ static sp::Shader* shader = nullptr;
 static unsigned int vertices_vbo = 0;
 static unsigned int indices_vbo = 0;
 
-struct VertexData
-{
-    glm::vec2 position;
-    glm::u8vec4 color;
-    glm::vec2 uv;
-};
-static std::vector<VertexData> vertex_data;
+static std::vector<RenderTarget::VertexData> vertex_data;
 static std::vector<uint16_t> index_data;
 
-static std::vector<VertexData> lines_vertex_data;
+static std::vector<RenderTarget::VertexData> lines_vertex_data;
 static std::vector<uint16_t> lines_index_data;
 
-static std::vector<VertexData> points_vertex_data;
+static std::vector<RenderTarget::VertexData> points_vertex_data;
 static std::vector<uint16_t> points_index_data;
 
 
@@ -1078,84 +1072,42 @@ void RenderTarget::finish()
     finish(atlas_texture);
 }
 
+void RenderTarget::applyBuffer(sp::Texture* texture, std::vector<VertexData> &data, std::vector<uint16_t> &index, int mode)
+{
+    if (data.size())
+    {
+        shader->bind();
+
+        glUniform1i(shader->getUniformLocation("u_texture"), 0);
+        glActiveTexture(GL_TEXTURE0);
+        texture->bind();
+
+        glBindBuffer(GL_ARRAY_BUFFER, vertices_vbo);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_vbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(VertexData) * data.size(), data.data(), GL_DYNAMIC_DRAW);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * index.size(), index.data(), GL_DYNAMIC_DRAW);
+
+        glVertexAttribPointer(shader->getAttributeLocation("a_position"), 2, GL_FLOAT, GL_FALSE, static_cast<GLsizei>(sizeof(VertexData)), (void*)0);
+        glEnableVertexAttribArray(shader->getAttributeLocation("a_position"));
+        glVertexAttribPointer(shader->getAttributeLocation("a_color"), 4, GL_UNSIGNED_BYTE, GL_TRUE, static_cast<GLsizei>(sizeof(VertexData)), (void*)offsetof(VertexData, color));
+        glEnableVertexAttribArray(shader->getAttributeLocation("a_color"));
+        glVertexAttribPointer(shader->getAttributeLocation("a_texcoords"), 2, GL_FLOAT, GL_FALSE, static_cast<GLsizei>(sizeof(VertexData)), (void*)offsetof(VertexData, uv));
+        glEnableVertexAttribArray(shader->getAttributeLocation("a_texcoords"));
+
+        glDrawElements(mode, static_cast<GLsizei>(index.size()), GL_UNSIGNED_SHORT, nullptr);
+
+        data.clear();
+        index.clear();
+    }
+}
+
 void RenderTarget::finish(sp::Texture* texture)
 {
-    if (index_data.size())
-    {
-        shader->bind();
-
-        glUniform1i(shader->getUniformLocation("u_texture"), 0);
-        glActiveTexture(GL_TEXTURE0);
-        texture->bind();
-
-        glBindBuffer(GL_ARRAY_BUFFER, vertices_vbo);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_vbo);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(VertexData) * vertex_data.size(), vertex_data.data(), GL_DYNAMIC_DRAW);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * index_data.size(), index_data.data(), GL_DYNAMIC_DRAW);
-
-        glVertexAttribPointer(shader->getAttributeLocation("a_position"), 2, GL_FLOAT, GL_FALSE, static_cast<GLsizei>(sizeof(VertexData)), (void*)0);
-        glEnableVertexAttribArray(shader->getAttributeLocation("a_position"));
-        glVertexAttribPointer(shader->getAttributeLocation("a_color"), 4, GL_UNSIGNED_BYTE, GL_TRUE, static_cast<GLsizei>(sizeof(VertexData)), (void*)offsetof(VertexData, color));
-        glEnableVertexAttribArray(shader->getAttributeLocation("a_color"));
-        glVertexAttribPointer(shader->getAttributeLocation("a_texcoords"), 2, GL_FLOAT, GL_FALSE, static_cast<GLsizei>(sizeof(VertexData)), (void*)offsetof(VertexData, uv));
-        glEnableVertexAttribArray(shader->getAttributeLocation("a_texcoords"));
-
-        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(index_data.size()), GL_UNSIGNED_SHORT, nullptr);
-
-        vertex_data.clear();
-        index_data.clear();
-    }
-    if (lines_index_data.size())
-    {
-        shader->bind();
-
-        glUniform1i(shader->getUniformLocation("u_texture"), 0);
-        glActiveTexture(GL_TEXTURE0);
-        atlas_texture->bind();
-
-        glBindBuffer(GL_ARRAY_BUFFER, vertices_vbo);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_vbo);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(VertexData) * lines_vertex_data.size(), lines_vertex_data.data(), GL_DYNAMIC_DRAW);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * lines_index_data.size(), lines_index_data.data(), GL_DYNAMIC_DRAW);
-
-        glVertexAttribPointer(shader->getAttributeLocation("a_position"), 2, GL_FLOAT, GL_FALSE, static_cast<GLsizei>(sizeof(VertexData)), (void*)0);
-        glEnableVertexAttribArray(shader->getAttributeLocation("a_position"));
-        glVertexAttribPointer(shader->getAttributeLocation("a_color"), 4, GL_UNSIGNED_BYTE, GL_TRUE, static_cast<GLsizei>(sizeof(VertexData)), (void*)offsetof(VertexData, color));
-        glEnableVertexAttribArray(shader->getAttributeLocation("a_color"));
-        glVertexAttribPointer(shader->getAttributeLocation("a_texcoords"), 2, GL_FLOAT, GL_FALSE, static_cast<GLsizei>(sizeof(VertexData)), (void*)offsetof(VertexData, uv));
-        glEnableVertexAttribArray(shader->getAttributeLocation("a_texcoords"));
-
-        glDrawElements(GL_LINES, static_cast<GLsizei>(lines_index_data.size()), GL_UNSIGNED_SHORT, nullptr);
-
-        lines_vertex_data.clear();
-        lines_index_data.clear();
-    }
-    if (points_index_data.size())
-    {
-        shader->bind();
-
-        glUniform1i(shader->getUniformLocation("u_texture"), 0);
-        glActiveTexture(GL_TEXTURE0);
-        texture->bind();
-
-        glBindBuffer(GL_ARRAY_BUFFER, vertices_vbo);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_vbo);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(VertexData) * points_vertex_data.size(), points_vertex_data.data(), GL_DYNAMIC_DRAW);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * points_index_data.size(), points_index_data.data(), GL_DYNAMIC_DRAW);
-
-        glVertexAttribPointer(shader->getAttributeLocation("a_position"), 2, GL_FLOAT, GL_FALSE, static_cast<GLsizei>(sizeof(VertexData)), (void*)0);
-        glEnableVertexAttribArray(shader->getAttributeLocation("a_position"));
-        glVertexAttribPointer(shader->getAttributeLocation("a_color"), 4, GL_UNSIGNED_BYTE, GL_TRUE, static_cast<GLsizei>(sizeof(VertexData)), (void*)offsetof(VertexData, color));
-        glEnableVertexAttribArray(shader->getAttributeLocation("a_color"));
-        glVertexAttribPointer(shader->getAttributeLocation("a_texcoords"), 2, GL_FLOAT, GL_FALSE, static_cast<GLsizei>(sizeof(VertexData)), (void*)offsetof(VertexData, uv));
-        glEnableVertexAttribArray(shader->getAttributeLocation("a_texcoords"));
-
-        glDrawElements(GL_POINTS, static_cast<GLsizei>(points_index_data.size()), GL_UNSIGNED_SHORT, nullptr);
-
-        points_vertex_data.clear();
-        points_index_data.clear();
-    }
-
+    
+    applyBuffer(texture, vertex_data, index_data, GL_TRIANGLES);
+    applyBuffer(texture, lines_vertex_data, lines_index_data, GL_LINES);
+    applyBuffer(texture, points_vertex_data, points_index_data, GL_POINTS);
+    
     glBindBuffer(GL_ARRAY_BUFFER, GL_NONE);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_NONE);
 }
