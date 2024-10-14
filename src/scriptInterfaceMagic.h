@@ -10,6 +10,7 @@
 #include "P.h"
 #include "stringImproved.h"
 #include "lua/lua.hpp"
+#include "scriptInterfaceSandbox.h"
 #include "glm/gtc/type_precision.hpp"
 #include <typeinfo>
 #include <optional>
@@ -124,7 +125,7 @@ struct convert<T*>
             return;
         }
         lua_pushstring(L, "__ptr");
-        lua_gettable(L, idx++);
+        lua_rawget(L, idx++);
         
         P<PObject>** p = static_cast< P<PObject>** >(lua_touserdata(L, -1));
         lua_pop(L, 1);
@@ -133,6 +134,11 @@ struct convert<T*>
             ptr = NULL;
             const char *msg = lua_pushfstring(L, "Object expected, got %s", luaL_typename(L, idx-1));
             luaL_argerror(L, idx-1, msg);
+            return;
+        }
+        if (*p == NULL)
+        {
+            ptr = NULL;
             return;
         }
         ptr = dynamic_cast<T*>(***p);
@@ -153,7 +159,7 @@ struct convert<P<T>>
             return;
         }
         lua_pushstring(L, "__ptr");
-        lua_gettable(L, idx++);
+        lua_rawget(L, idx++);
         
         P<PObject>** p = static_cast< P<PObject>** >(lua_touserdata(L, -1));
         lua_pop(L, 1);
@@ -161,6 +167,13 @@ struct convert<P<T>>
         {
             ptr = NULL;
             const char *msg = lua_pushfstring(L, "Object expected, got %s", luaL_typename(L, idx-1));
+            luaL_argerror(L, idx-1, msg);
+            return;
+        }
+        if (*p == NULL)
+        {
+            ptr = NULL;
+            const char* msg = lua_pushliteral(L, "Object expected, got destroyed object");
             luaL_argerror(L, idx-1, msg);
             return;
         }
@@ -196,7 +209,8 @@ struct convert<P<T>>
             P<PObject>** p = static_cast< P<PObject>** >(lua_newuserdata(L, sizeof(P<PObject>*)));
             *p = new P<PObject>();
             (**p) = ptr;
-            lua_settable(L, -3);
+
+            lua_rawset(L, -3);
 
             lua_pushlightuserdata(L, ptr);
             lua_pushvalue(L, -2);
@@ -367,7 +381,7 @@ template<class T> struct call<T, ScriptCallback T::* >
         if (!lua_istable(L, -1))
             luaL_error(L, "??[setcallbackFunction] Upvalue 1 of function is not a table...");
         lua_pushstring(L, "__script_pointer");
-        lua_gettable(L, -2);
+        lua_rawget(L, -2);
         if (!lua_islightuserdata(L, -1))
             luaL_error(L, "??[setcallbackFunction] Cannot find reference back to script...");
         //Stack is now: [function_environment] [pointer]
@@ -523,12 +537,14 @@ public:
         if (!lua_istable(L, -1))
             return 0;
         lua_pushstring(L, "__ptr");
-        lua_gettable(L, -2);
+        lua_rawget(L, -2);
         if (lua_isuserdata(L, -1)) //When a subclass is destroyed, it's metatable might call the __gc function on it's sub-metatable. So we can get nil values here, ignore that.
         {
             PT* p = static_cast< PT* >(lua_touserdata(L, -1));
-            if (*p)
+            if (*p) {
                 delete *p;
+                *p = nullptr;
+            }
         }
         lua_pop(L, 1);
         return 0;
@@ -598,6 +614,10 @@ public:
             lua_pop(L, 1);
             luaL_newmetatable(L, objectTypeName);
         }
+
+        lua_pushstring(L, "__metatable"); // protect the metatable
+        lua_pushstring(L, "sandbox");
+        lua_settable(L, metatable);
         
         lua_pushstring(L, "__gc");
         lua_pushcfunction(L, gc_collect);
@@ -700,5 +720,13 @@ public:
         lua_setglobal(L, # F ); \
     } \
     ScriptClassInfo scriptClassInfo ## F ( # F , "" , registerFunctionFunction ## F , NULL );
+
+#define REGISTER_SCRIPT_FUNCTION_NAMED(F, NAME) \
+    static void registerFunctionFunction ## F (lua_State* L) { \
+        lua_pushvalue(L, -1); \
+        lua_pushcclosure(L, &F, 1); \
+        lua_setglobal(L, NAME ); \
+    } \
+    ScriptClassInfo scriptClassInfo ## F ( NAME , "" , registerFunctionFunction ## F , NULL );
 
 #endif//SCRIPT_INTERFACE_MAGIC_H

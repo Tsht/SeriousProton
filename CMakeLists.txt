@@ -22,6 +22,9 @@ set(EXTERNALS_DIR "${PROJECT_BINARY_DIR}/externals")
 set(DOWNLOADS_DIR "${PROJECT_BINARY_DIR}/downloads")
 file(MAKE_DIRECTORY "${EXTERNAL_DIR}" "${DOWNLOADS_DIR}")
 
+# We just want C++17 for everything we build
+set(CMAKE_CXX_STANDARD 17)
+
 include("cmake/DrMingw.cmake")
 
 #--------------------------------Dependencies----------------------------------
@@ -170,6 +173,7 @@ set(source_files #All SeriousProton's objects to compile
     src/resources.cpp
     src/scriptInterface.cpp
     src/scriptInterfaceMagic.cpp
+    src/scriptInterfaceSandbox.cpp
     src/shaderManager.cpp
     src/soundManager.cpp
     src/stringImproved.cpp
@@ -249,6 +253,7 @@ set(source_files #All SeriousProton's objects to compile
     src/resources.h
     src/scriptInterface.h
     src/scriptInterfaceMagic.h
+    src/scriptInterfaceSandbox.h
     src/shaderManager.h
     src/soundManager.h
     src/stringImproved.h
